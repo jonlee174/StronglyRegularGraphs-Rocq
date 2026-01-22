@@ -70,6 +70,13 @@ Definition is_srg (params : srg_params) : Prop :=
 
 End SRGPredicate.
 
+(* Bundled strongly regular graph containing the graph and its parameters *)
+Record SRGraph := {
+  srg_graph :> sgraph;
+  srg_params_of : srg_params;
+  srg_proof : is_srg srg_graph srg_params_of
+}.
+
 (* Accessor functions for SRG parameters *)
 Definition srg_num_vertices (S : SRGraph) := srg_v (srg_params_of S).
 Definition srg_degree (S : SRGraph) := srg_k (srg_params_of S).
