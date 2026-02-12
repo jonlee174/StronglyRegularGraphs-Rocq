@@ -41,11 +41,13 @@ Variable G : sgraph.
 
 (* A graph G is strongly regular with parameters (v, k, lambda, mu) if:
     1. G has exactly v vertices
-    2. G is k-regular
-    3. Adjacent vertices have exactly lambda common neighbors
-    4. Non-adjacent distinct vertices have exactly mu common neighbors *)
+    2. G is connected
+    3. G is k-regular
+    4. Adjacent vertices have exactly lambda common neighbors
+    5. Non-adjacent distinct vertices have exactly mu common neighbors *)
 Definition is_srg (params : srg_params) : Prop :=
   [/\ #|[set: G]| = srg_v params,
+      connected [set: G],
       is_regular G (srg_k params),
       (forall x y : G, x -- y -> num_common_neighbors G x y = srg_lambda params) &
       (forall x y : G, x != y -> ~~ (x -- y) -> num_common_neighbors G x y = srg_mu params)].
@@ -252,12 +254,15 @@ Theorem srg_complement_closure (params : srg_params) :
   srg_lambda params <= 2 * srg_k params ->
   srg_mu params <= 2 * srg_k params ->
   2 * srg_k params <= srg_v params ->
+  connected [set: compl G] ->
   is_srg G params -> 
   is_srg (compl G) (compl_srg_params params).
 Proof.
-  move=> Hlam_bound Hmu_bound Hv_ge_2k [Hv Hreg Hadj Hnonadj].
+  move=> Hlam_bound Hmu_bound Hv_ge_2k Hconn_compl [Hv Hconn Hreg Hadj Hnonadj].
   rewrite /is_srg /compl_srg_params /=; split.
   - by rewrite Hv.
+  
+  - exact: Hconn_compl.
   
   - by move=> x; rewrite degree_compl -Hv cardsT (Hreg x).
   
