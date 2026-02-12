@@ -330,15 +330,28 @@ Proof.
   have [x _] : exists x : G, x \in [set: G].
   { by apply/card_gt0P. }
 
+  (* Define neighbor/non-neighbor sets around x *)
   pose N := neighborhood G x.
   pose M := [set y | (y != x) && (y \notin N)].
 
-  (* Define neighbor/non-neighbor sets around x *)
   have size_N : #|N| = k.
   { have Hkx := Hreg x.
     by rewrite /degree /N in Hkx. }
 
   (* Size of M is v - k - 1 *)
   have size_M : #|M| = v - k - 1.
+  { rewrite /M.
+    rewrite (_ : [set y | (y != x) && (y \notin N)] = ~: (x |: N)).
+    - rewrite card_compl_set.
+      rewrite cardsU1.
+      rewrite Hv size_N -/v.
+      rewrite not_in_neighborhood.
+      rewrite addnC.
+      by rewrite subnDA.
+    - apply/setP => z.
+      rewrite !inE.
+      rewrite negb_or.
+      by rewrite eq_sym.
+  }
 
 
