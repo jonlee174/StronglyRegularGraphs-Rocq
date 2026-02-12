@@ -283,3 +283,62 @@ Proof.
 Qed.
 
 End ComplementClosure.
+
+
+(**  SRG Properties **)
+(* Number of edges *)
+(* There are 2 ways to find the number of edges between the neighbors and non-neighbors of mu: 
+    Assuming G is a valid SRG: G = srg(n, k, lambda, mu). Then,
+    1. There are k(k - lambda - 1) edges between the non-neighbors of mu
+    2. k(k - lambda - 1) = (v - k - 1)mu *)
+Section SRGProps.
+
+Variable G : sgraph.
+Variable p : srg_params.
+
+Hypothesis H_srg : is_srg G p.
+
+(* To ensure safe subtraction in k(k - lambda - 1) = (v - k - 1)mu, we need the following bounds:
+    - k >= lambda + 1  || lambda < k
+    - v >= k - 1 || k < v
+*)
+Hypothesis valid_k_lam : srg_lambda p < srg_k p.
+Hypothesis valid_k_v : srg_k p < srg_v p.
+
+Lemma srg_standard_parameter_identity :
+  let v := srg_v p in
+  let k := srg_k p in
+  let lam := srg_lambda p in
+  let mu := srg_mu p in
+  k * (k - lam - 1) = (v - k - 1) * mu.
+Proof.
+  set v := srg_v p.
+  set k := srg_k p.
+  set lam := srg_lambda p.
+  set mu := srg_mu p.
+
+  move: H_srg => [Hv Hreg Hadj Hnonadj].
+
+  (* Count the edges between neighbors and non-neighbors of a vertex x *)
+  (* Let x be an arbitrary vertex in G *)
+  have v_pos : 0 < v.
+  { exact: (leq_ltn_trans (leq0n k) valid_k_v). }
+
+  have cardV_pos : 0 < #|[set: G]|.
+  { by rewrite Hv. }
+
+  have [x _] : exists x : G, x \in [set: G].
+  { by apply/card_gt0P. }
+
+  pose N := neighborhood G x.
+  pose M := [set y | (y != x) && (y \notin N)].
+
+  (* Define neighbor/non-neighbor sets around x *)
+  have size_N : #|N| = k.
+  { have Hkx := Hreg x.
+    by rewrite /degree /N in Hkx. }
+
+  (* Size of M is v - k - 1 *)
+  have size_M : #|M| = v - k - 1.
+
+
