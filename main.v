@@ -308,9 +308,12 @@ Hypothesis valid_k_v : srg_k p < srg_v p.
 (* General lemma for bipartite graph *)
 Lemma bipartite_g (A B : {set G}) (a b : nat) :
   [disjoint A & B] ->
-  (forall x : G, x \in A -> degree G x = a) ->
-  (forall x : G, x \in B -> degree G x = b) ->
-  a * #|A| = b * #|B|.
+  (forall v, v \in A -> #|neighborhood G v :&: B| = a) ->
+  (forall v, v \in B -> #|neighborhood G v :&: A| = b) ->
+  #|A| * a = #|B| * b.
+Proof.
+  Admitted.
+
 
 Lemma srg_standard_parameter_identity :
   let v := srg_v p in
@@ -367,8 +370,8 @@ Proof.
         (a, b), the number of edges is a|A| = b|B|. 
       - Then: apply this to N(x) and M(x) (ie, (V - N(x) - {x}) )
   *)
+  
 
-Admitted.
 Qed.
       
   
