@@ -289,7 +289,7 @@ End ComplementClosure.
 (* Number of edges *)
 (* There are 2 ways to find the number of edges between the neighbors and non-neighbors of mu: 
     Assuming G is a valid SRG: G = srg(n, k, lambda, mu). Then,
-    1. There are k(k - lambda - 1) edges between the non-neighbors of mu
+    1. There are k(k - lambda - 1) edges between the non-neighbors of u
     2. k(k - lambda - 1) = (v - k - 1)mu *)
 Section SRGProps.
 
@@ -321,14 +321,14 @@ Proof.
 
   (* Count the edges between neighbors and non-neighbors of a vertex x *)
   (* Let x be an arbitrary vertex in G *)
-  have v_pos : 0 < v.
+  have num_v : 0 < v.
   { exact: (leq_ltn_trans (leq0n k) valid_k_v). }
 
-  have cardV_pos : 0 < #|[set: G]|.
-  { by rewrite Hv. }
-
   have [x _] : exists x : G, x \in [set: G].
-  { by apply/card_gt0P. }
+  { apply/card_gt0P.
+    rewrite Hv.
+    exact: num_v.
+  }
 
   (* Define neighbor/non-neighbor sets around x *)
   pose N := neighborhood G x.
@@ -354,4 +354,22 @@ Proof.
       by rewrite eq_sym.
   }
 
+  (* Counting number of edges connecting N to M:
+      - First: count edges leaving set of neighbors N
+      - Second: count edges leaving set of non-neighbors M 
+      - These numbers should match *)
+      
+  (* Count edges from N -- M *)
+  (* k(k - lambda - 1) *)
+  have edges_from_N : \sum_(y in N) #|neighborhood G y :&: M| = k * (k - lam - 1).
+  Admitted.
+  (* TODO: 
+    for y in N(x),
+    N(y) can be partitioned into 3 sets:
+      - {x} union (N(y) and N(x)) union (N(y) and M(x))
+    so |N(y) and M(x)| = k - lambda - 1, since |N(y)| = k and |N(y) and N(x)| = lambda, and x is not in N(y)
+    then sum over |N(x)| = k, so we get k(k - lambda - 1)
+  *)
 
+  (* Count edges from M -- N *)
+  (* (v - k - 1)mu *)
