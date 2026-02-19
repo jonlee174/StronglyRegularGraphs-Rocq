@@ -305,6 +305,13 @@ Hypothesis H_srg : is_srg G p.
 Hypothesis valid_k_lam : srg_lambda p < srg_k p.
 Hypothesis valid_k_v : srg_k p < srg_v p.
 
+(* General lemma for bipartite graph *)
+Lemma bipartite_g (A B : {set G}) (a b : nat) :
+  [disjoint A & B] ->
+  (forall x : G, x \in A -> degree G x = a) ->
+  (forall x : G, x \in B -> degree G x = b) ->
+  a * #|A| = b * #|B|.
+
 Lemma srg_standard_parameter_identity :
   let v := srg_v p in
   let k := srg_k p in
@@ -355,21 +362,13 @@ Proof.
   }
 
   (* Counting number of edges connecting N to M:
-      - First: count edges leaving set of neighbors N
-      - Second: count edges leaving set of non-neighbors M 
-      - These numbers should match *)
-      
-  (* Count edges from N -- M *)
-  (* k(k - lambda - 1) *)
-  have edges_from_N : \sum_(y in N) #|neighborhood G y :&: M| = k * (k - lam - 1).
-  Admitted.
-  (* TODO: 
-    for y in N(x),
-    N(y) can be partitioned into 3 sets:
-      - {x} union (N(y) and N(x)) union (N(y) and M(x))
-    so |N(y) and M(x)| = k - lambda - 1, since |N(y)| = k and |N(y) and N(x)| = lambda, and x is not in N(y)
-    then sum over |N(x)| = k, so we get k(k - lambda - 1)
+      - First: prove that for a bipartite graph with 
+        parts A and B which is bi-regular of degrees
+        (a, b), the number of edges is a|A| = b|B|. 
+      - Then: apply this to N(x) and M(x) (ie, (V - N(x) - {x}) )
   *)
 
-  (* Count edges from M -- N *)
-  (* (v - k - 1)mu *)
+Admitted.
+Qed.
+      
+  
