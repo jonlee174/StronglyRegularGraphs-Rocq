@@ -3,3 +3,8 @@
 *.vo
 *.vok
 *.vos
+
+.vscode
+
+Makefile
+Makefile.conf
