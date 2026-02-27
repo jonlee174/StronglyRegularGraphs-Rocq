@@ -407,10 +407,21 @@ Proof.
           by rewrite Hx andbF. }
         by rewrite -/(num_common_neighbors G z x) (Hadj z x Hzx). }
 
-    - (* Subgoal 3: Fixed degree from M to N *)
-      
-  }
+        have -> : #|neighborhood G z| = srg_k p by exact: (Hreg z).
+        by rewrite addnC subnDA.
 
+    - (* Subgoal 3: Fixed degree from M to N *)
+      move=> z Hz.
+      have Hneq : z != x by move: Hz; rewrite /M inE => /andP [H _].
+      have HnotN : z \notin N by move: Hz; rewrite /M inE => /andP [_ H].
+      have Hnotadj : ~~ (z -- x).
+      { move: HnotN. rewrite /N inE. 
+        by rewrite sg_sym. }
+      have -> : #|neighborhood G z :&: N| = num_common_neighbors G z x.
+      { by rewrite /N /num_common_neighbors. }
+      by exact: (Hnonadj z x Hneq Hnotadj).
+  }
+  by rewrite size_N size_M in bipartite_N_M.
 Qed.
       
   
