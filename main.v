@@ -365,12 +365,51 @@ Proof.
   }
 
   (* Counting number of edges connecting N to M:
-      - First: prove that for a bipartite graph with 
+      - Step 1: prove that for a bipartite graph with 
         parts A and B which is bi-regular of degrees
         (a, b), the number of edges is a|A| = b|B|. 
-      - Then: apply this to N(x) and M(x) (ie, (V - N(x) - {x}) )
+      - Step 2: apply this to N(x) and M(x) (ie, (V - N(x) - {x}) )
   *)
-  
+  rewrite /v /k /lam /mu.
+
+  (* Step 2: *)
+  have bipartite_N_M : #|N| * (srg_k p - srg_lambda p - 1) = #|M| * (srg_mu p).
+  { refine (bipartite_g (A := N) (B := M) 
+                        (a := srg_k p - srg_lambda p - 1) 
+                        (b := srg_mu p) _ _ _).
+    - (* Subgoal: Disjointness of N and M *)
+      rewrite /N /M.
+      apply/disjointP => z.
+      rewrite !inE.
+      move => H_in_N /andP [_ H_not_in_N].
+      by rewrite H_in_N in H_not_in_N.
+
+    - (* Subgoal 2: Fixed degree from N to M *)
+      move=> z Hz.
+      have Hzx : z -- x by move: Hz; rewrite /N /neighborhood inE sg_sym.
+      pose sub_set := x |: (neighborhood G z :&: N).
+
+      have -> : neighborhood G z :&: M = neighborhood G z :\: sub_set.
+      { apply/setP=> w. rewrite /sub_set /M /N !inE !negb_or.
+        by case: (z -- w). }
+      
+      have Hsub : sub_set \subset neighborhood G z.
+      { apply/subsetP=> w. rewrite /sub_set !inE.
+        case/orP=> [/eqP -> | /andP[H _]] //. }
+
+      rewrite (cardsDS Hsub).
+
+      have -> : #|sub_set| = 1 + srg_lambda p.
+      { rewrite /sub_set cardsU1.
+        have -> : x \notin neighborhood G z :&: N = true.
+        { rewrite in_setI.
+          have Hx : (x \in N) = false by rewrite /N inE sg_irrefl.
+          by rewrite Hx andbF. }
+        by rewrite -/(num_common_neighbors G z x) (Hadj z x Hzx). }
+
+    - (* Subgoal 3: Fixed degree from M to N *)
+      
+  }
 
 Qed.
       
