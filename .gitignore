@@ -3,6 +3,8 @@
 *.vo
 *.vok
 *.vos
+*.ml
+*.mli
 
 .vscode
 
