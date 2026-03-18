@@ -28,6 +28,10 @@ rocq makefile -f _CoqProject -o Makefile
 make
 ```
 
+## Extraction
+
+To extract OCaml code, run `rocq c -R . SRG extract.v` after building. This produces `srg.ml` and `srg.mli` in the working directory.
+
 ## Authors
 
 Ejean Kuo, Jonathan Lee
