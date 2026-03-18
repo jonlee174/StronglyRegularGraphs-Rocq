@@ -1,3 +1,4 @@
 -R . SRG
 main.v
 paley.v
+hamming.v

@@ -4,6 +4,12 @@
 *.vok
 *.vos
 
+*.ml
+*.mli
+*.cmi
+*.cmx
+*.o
+
 .vscode
 
 Makefile
