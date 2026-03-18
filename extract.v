@@ -23,6 +23,7 @@ Extract Inductive prod => "( * )" [ "(,)" ].
 Extract Inductive option => "option" [ "Some" "None" ].
 
 Extraction Blacklist String List.
+Extraction Inline predT pred_of_argType.
 
 Extraction "srg.ml"
   neighborhood degree common_neighbors num_common_neighbors is_regular
