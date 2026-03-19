@@ -3,6 +3,14 @@
 *.vo
 *.vok
 *.vos
+
+*.ml
+*.mli
+*.cmi
+*.cmx
+*.o
+
+.vscode
+
 Makefile
 Makefile.conf
-.*.d

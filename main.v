@@ -26,8 +26,6 @@ Definition is_regular (k : nat) := forall x : G, degree x = k.
 
 End SRGDefinitions.
 
-(** ** SRG Parameters Record *)
-
 Record srg_params := SRGParams {
   srg_v : nat;
   srg_k : nat;
@@ -41,11 +39,13 @@ Variable G : sgraph.
 
 (* A graph G is strongly regular with parameters (v, k, lambda, mu) if:
     1. G has exactly v vertices
-    2. G is k-regular
-    3. Adjacent vertices have exactly lambda common neighbors
-    4. Non-adjacent distinct vertices have exactly mu common neighbors *)
+    2. G is connected
+    3. G is k-regular
+    4. Adjacent vertices have exactly lambda common neighbors
+    5. Non-adjacent distinct vertices have exactly mu common neighbors *)
 Definition is_srg (params : srg_params) : Prop :=
   [/\ #|[set: G]| = srg_v params,
+      connected [set: G],
       is_regular G (srg_k params),
       (forall x y : G, x -- y -> num_common_neighbors G x y = srg_lambda params) &
       (forall x y : G, x != y -> ~~ (x -- y) -> num_common_neighbors G x y = srg_mu params)].
@@ -99,16 +99,12 @@ Lemma neighborhood_compl_eq (x : G) :
   @neighborhood (compl G) x = ~: (x |: neighborhood G x).
 Proof. by apply/setP => y; rewrite neighborhood_compl !inE negb_or. Qed.
 
-Lemma x_notin_neighborhoodG (x : G) : x \notin neighborhood G x.
-Proof. by rewrite /neighborhood inE sg_irrefl. Qed.
-
 Lemma degree_compl (x : G) :
   @degree (compl G) x = #|G| - degree G x - 1.
 Proof.
-  rewrite /degree neighborhood_compl_eq.
-  have Hsub: x |: neighborhood G x \subset [set: G] by apply/subsetP.
-  rewrite -setTD cardsDS // cardsT cardsU1.
-  by rewrite (negbTE (x_notin_neighborhoodG x)) /= subnDA subnAC.
+  rewrite /degree neighborhood_compl_eq -setTD cardsDS ?cardsT ?cardsU1;
+    last by apply/subsetP.
+  by rewrite (negbTE (not_in_neighborhood G x)) /= subnDA subnAC.
 Qed.
 
 Lemma common_neighbors_compl (x y : G) (Hneq : x != y) :
@@ -143,9 +139,7 @@ Lemma set2_sub_union_neighborhoods_adj (x y : G) :
   x -- y -> [set x; y] \subset neighborhood G x :|: neighborhood G y.
 Proof.
   move=> Hadj; apply/subsetP => z; rewrite /neighborhood !inE.
-  case/orP => /eqP ->.
-  - by rewrite sg_sym Hadj orbT.
-  - by rewrite Hadj.
+  by case/orP => /eqP ->; [rewrite (sg_sym y) Hadj orbT | rewrite Hadj].
 Qed.
 
 (* Cardinality of unions *)
@@ -158,13 +152,10 @@ Lemma card_union_nonadj (x y : G) (k mu : nat) :
   #|[set x; y] :|: (neighborhood G x :|: neighborhood G y)| = 2 * k - mu + 2.
 Proof.
   move=> Hneq Hnonadj Hreg Hmu.
-  have Hdisj := set2_disj_union_neighborhoods_nonadj x y Hneq Hnonadj.
-  rewrite cardsU (disjoint_setI0 Hdisj) cards0 subn0.
-  rewrite cards2; rewrite Hneq /= cardsU.
+  rewrite cardsU (disjoint_setI0 (set2_disj_union_neighborhoods_nonadj _ _ Hneq Hnonadj)).
+  rewrite cards0 subn0 cards2 Hneq /= cardsU.
   rewrite -/(degree G x) -/(degree G y) (Hreg x) (Hreg y).
-  have->: #|neighborhood G x :&: neighborhood G y| = mu.
-  { by rewrite -/(common_neighbors G x y) -/(num_common_neighbors G x y) Hmu. }
-  by rewrite mul2n -addnn [2 + _]addnC.
+  by rewrite -/(common_neighbors G x y) -/(num_common_neighbors G x y) Hmu // mul2n -addnn [2 + _]addnC.
 Qed.
 
 (* For adjacent x,y: |{x,y} U N(x) U N(y)| = 2k - lambda *)
@@ -175,12 +166,9 @@ Lemma card_union_adj (x y : G) (k lam : nat) :
   #|[set x; y] :|: (neighborhood G x :|: neighborhood G y)| = 2 * k - lam.
 Proof.
   move=> Hneq Hadj Hreg Hlam.
-  have Hsub := set2_sub_union_neighborhoods_adj x y Hadj.
-  rewrite (setUidPr Hsub) cardsU.
+  rewrite (setUidPr (set2_sub_union_neighborhoods_adj _ _ Hadj)) cardsU.
   rewrite -/(degree G x) -/(degree G y) (Hreg x) (Hreg y).
-  have->: #|neighborhood G x :&: neighborhood G y| = lam.
-  { by rewrite -/(common_neighbors G x y) -/(num_common_neighbors G x y) Hlam. }
-  by rewrite mul2n -addnn.
+  by rewrite -/(common_neighbors G x y) -/(num_common_neighbors G x y) Hlam // mul2n -addnn.
 Qed.
 
 (* Complement parameters *)
@@ -195,91 +183,35 @@ Definition compl_srg_params (params : srg_params) : srg_params :=
 Lemma card_compl_set (A : {set G}) : #|~: A| = #|[set: G]| - #|A|.
 Proof. by rewrite -setTD cardsDS //; apply/subsetP. Qed.
 
-(* Arithmetic lemmas *)
-
-(* This lemma handles nat subtraction for the non-adjacent case:
-   v - (2*k - mu + 2) = v - 2*k + mu - 2  when appropriate bounds hold *)
+(* Arithmetic for nat subtraction rearrangement: v - (2*k - mu + 2) = v - 2*k + mu - 2  *)
 Lemma nat_sub_rearrange (v k mu : nat) :
-  mu <= 2 * k ->
-  v - (2 * k - mu + 2) = v + mu - (2 * k + 2).
-Proof.
-  move=> Hmu_le.
-  (* 2*k - mu + 2 = 2*k + 2 - mu when mu <= 2*k *)
-  have H1: 2 * k - mu + 2 = 2 * k + 2 - mu.
-  { rewrite addnC [2 * k + 2]addnC addnBA //. }
-  rewrite H1.
-  (* v - (2*k + 2 - mu) = v + mu - (2*k + 2) *)
-  have Hmu_le': mu <= 2 * k + 2 by apply: leq_trans Hmu_le _; apply: leq_addr.
-  by rewrite subnBA // addnC.
-Qed.
-
-(* For the final equality in the non-adjacent case *)
-Lemma nat_arith_nonadj (v k mu : nat) :
-  2 * k <= v ->
-  v + mu - (2 * k + 2) = v - 2 * k + mu - 2.
-Proof.
-  move=> Hvk.
-  set d := v - 2 * k.
-  have Hv_eq: v = d + 2 * k by rewrite /d subnK.
-  rewrite Hv_eq.
-  rewrite [d + 2 * k + mu]addnAC.
-  rewrite [2 * k + 2]addnC.
-  rewrite subnDr.
-  by [].
-Qed.
-
-(* Proves v - (2*k - mu + 2) = v - 2*k + mu - 2 *)
-Lemma nat_sub_rearrange_full (v k mu : nat) :
-  mu <= 2 * k ->
-  2 * k <= v ->
+  mu <= 2 * k -> 2 * k <= v ->
   v - (2 * k - mu + 2) = v - 2 * k + mu - 2.
 Proof.
-  move=> Hmu_le Hvk.
-  by rewrite nat_sub_rearrange // nat_arith_nonadj.
+  by move=> Hmu Hvk; rewrite subnDA (subnBA v Hmu) (addnC v) -(addnBA mu Hvk) addnC.
 Qed.
 
-(* 
-   The complement closure theorem for SRGs.
-   
-   We require two arithmetic bounds that are always satisfied for valid SRGs:
-   - lambda <= 2*k (since lambda <= k - 1 < k <= 2*k for k > 0)
-   - mu <= 2*k (since mu <= k <= 2*k)
-   
-   And one bound ensuring the complement formula is well-defined:
-   - 2*k <= v (which holds for all known SRGs)
-*)
 Theorem srg_complement_closure (params : srg_params) :
   srg_lambda params <= 2 * srg_k params ->
   srg_mu params <= 2 * srg_k params ->
   2 * srg_k params <= srg_v params ->
+  connected [set: compl G] ->
   is_srg G params -> 
   is_srg (compl G) (compl_srg_params params).
 Proof.
-  move=> Hlam_bound Hmu_bound Hv_ge_2k [Hv Hreg Hadj Hnonadj].
+  move=> Hlam_bound Hmu_bound Hv_ge_2k Hconn_compl [Hv Hconn Hreg Hadj Hnonadj].
   rewrite /is_srg /compl_srg_params /=; split.
   - by rewrite Hv.
-  
+  - exact: Hconn_compl.
   - by move=> x; rewrite degree_compl -Hv cardsT (Hreg x).
-  
   - move=> x y; rewrite /sedge /= => /andP[Hneq Hnotadj].
-    rewrite /num_common_neighbors common_neighbors_compl //.
-    rewrite card_compl_set.
-    have Hcard := @card_union_nonadj x y (srg_k params) (srg_mu params) Hneq Hnotadj Hreg Hnonadj.
-    rewrite Hcard.
-    have->: #|[set: G]| = srg_v params by [].
-    by apply: nat_sub_rearrange_full Hmu_bound Hv_ge_2k.
-  
-  - move=> x y Hneq.
-    rewrite /sedge /= negb_and Hneq /= negbK => Hadj_G.
-    rewrite /num_common_neighbors common_neighbors_compl //.
-    rewrite card_compl_set.
-    have Hcard := @card_union_adj x y (srg_k params) (srg_lambda params) Hneq Hadj_G Hreg Hadj.
-    rewrite Hcard.
-    have->: #|[set: G]| = srg_v params by [].
-    set v := srg_v params; set k := srg_k params; set lam := srg_lambda params.
-    rewrite subnBA //.
-    rewrite addnC -addnBA // addnC.
-    by [].
+    rewrite /num_common_neighbors common_neighbors_compl // card_compl_set.
+    rewrite (card_union_nonadj _ _ Hneq Hnotadj Hreg Hnonadj).
+    by have->: #|[set: G]| = srg_v params by []; exact: nat_sub_rearrange.
+  - move=> x y Hneq; rewrite /sedge /= negb_and Hneq /= negbK => Hadj_G.
+    rewrite /num_common_neighbors common_neighbors_compl // card_compl_set.
+    rewrite (card_union_adj _ _ Hneq Hadj_G Hreg Hadj).
+    by have->: #|[set: G]| = srg_v params by []; rewrite subnBA // addnC -addnBA // addnC.
 Qed.
 
 End ComplementClosure.
