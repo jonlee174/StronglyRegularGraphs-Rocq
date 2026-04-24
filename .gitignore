@@ -5,10 +5,12 @@
 *.vos
 
 *.ml
+!main.ml
 *.mli
 *.cmi
 *.cmx
 *.o
+*.exe
 
 .vscode
 
