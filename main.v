@@ -215,3 +215,60 @@ Proof.
 Qed.
 
 End ComplementClosure.
+
+
+Section EdgeCount.
+
+Variable G : sgraph.
+
+Lemma card_setI_sum (A B : {set G}) : #|A :&: B| = \sum_(z in A) (z \in B).
+Proof.
+  rewrite -sum1_card.
+  under eq_bigl => z do rewrite inE.
+  by rewrite big_mkcondr.
+Qed.
+
+(* Counting edges between N(x) and the rest of the graph in two directions *)
+Lemma srg_edge_count (k lam mu : nat) (x : G) :
+  is_regular G k ->
+  (forall u v : G, u -- v -> num_common_neighbors G u v = lam) ->
+  (forall u v : G, u != v -> ~~ (u -- v) -> num_common_neighbors G u v = mu) ->
+  (#|~: (neighborhood G x :|: [set x])| * mu + k * lam.+1 = k * k)%N.
+Proof.
+  move=> Hreg Hlam Hmu.
+  pose D := ~: (neighborhood G x :|: [set x]).
+  have HNx : #|neighborhood G x| = k by rewrite -/(degree G x) Hreg.
+  have Hkey : (\sum_(y in neighborhood G x) #|neighborhood G y :&: D|
+             = \sum_(z in D) #|neighborhood G z :&: neighborhood G x|)%N.
+  { under eq_bigr => y _ do rewrite setIC card_setI_sum.
+    under [RHS]eq_bigr => z _ do rewrite setIC card_setI_sum.
+    rewrite exchange_big /=; apply: eq_bigr => z _; apply: eq_bigr => y _.
+    by rewrite !inE sg_sym. }
+  have HR : (\sum_(z in D) #|neighborhood G z :&: neighborhood G x|
+             = #|D| * mu)%N.
+  { rewrite -sum_nat_const; apply: eq_bigr => z Hz.
+    move: Hz; rewrite /D !inE negb_or => /andP[Hnadj Hzx].
+    have Hm := Hmu z x Hzx; rewrite /num_common_neighbors /common_neighbors in Hm.
+    by apply: Hm; rewrite sg_sym. }
+  have HL : (\sum_(y in neighborhood G x) #|neighborhood G y :&: D|
+             + #|neighborhood G x| * lam.+1 = #|neighborhood G x| * k)%N.
+  { rewrite -!sum_nat_const -big_split /=; apply: eq_bigr => y Hy.
+    have Hxy : x -- y by move: Hy; rewrite inE.
+    have Hyx0 : y -- x by rewrite sg_sym.
+    have Hyx : x \in neighborhood G y by rewrite inE.
+    have Hyk : #|neighborhood G y| = k by rewrite -/(degree G y) Hreg.
+    have Hl := Hlam y x Hyx0.
+    rewrite /num_common_neighbors /common_neighbors in Hl.
+    have HD : neighborhood G y :\: D = x |: (neighborhood G y :&: neighborhood G x).
+    { apply/setP => z; rewrite /D !inE negbK.
+      case: (altP (z =P x)) => [->|Hzx].
+      - by rewrite orbT /= Hyx0.
+      - by rewrite orbF andbC. }
+    have Hxni : x \notin neighborhood G y :&: neighborhood G x
+      by rewrite inE negb_and not_in_neighborhood orbT.
+    have Hc := cardsID D (neighborhood G y).
+    by rewrite HD cardsU1 Hxni /= add1n Hyk Hl in Hc. }
+  by rewrite HNx in HL; rewrite -/D -HR -Hkey.
+Qed.
+
+End EdgeCount.

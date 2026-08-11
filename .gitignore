@@ -11,8 +11,10 @@
 *.cmx
 *.o
 *.exe
+/demo
 
 .vscode
 
-Makefile
-Makefile.conf
+Makefile.coq
+Makefile.coq.conf
+.Makefile.coq.d

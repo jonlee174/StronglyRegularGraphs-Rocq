@@ -16,6 +16,7 @@ A small library formalizing strongly regular graphs (SRGs) in Rocq, built on Mat
 - Rocq 9.1
 - MathComp 2.5 (ssreflect, fingroup, algebra, field)
 - coq-graph-theory 0.9.7
+- coq-mathcomp-finmap 2.2.2 (see note below)
 
 See `srg-deps.opam` for the full list. Install with:
 
@@ -23,36 +24,28 @@ See `srg-deps.opam` for the full list. Install with:
 opam install . --deps-only
 ```
 
+`coq-graph-theory` 0.9.7 does not bound `coq-mathcomp-finmap`, so opam will
+otherwise select finmap 2.2.4, which adds fset-comprehension lemmas to the
+`inE` database and breaks graph-theory's own `edges_atE` rewrites in
+`theories/core/open_confluence.v`. `srg-deps.opam` therefore constrains finmap
+to `>= 2.2.2 & < 2.2.4`, the newest release compatible with both MathComp 2.5
+and graph-theory 0.9.7. If you already have 2.2.4 installed, opam will
+downgrade it as part of `--deps-only`.
+
 ## Building
 
-On macOS/Linux (where `make` is available):
+```
+make          # compile the proofs
+make demo     # extract to OCaml and build the ./demo CLI
+make clean    # remove all build artifacts
+```
 
-```
-rocq makefile -f _CoqProject -o Makefile
-make
-```
-
-On Windows, or without `make`:
-
-```
-opam exec -- rocq c -R . SRG main.v
-opam exec -- rocq c -R . SRG paley.v
-opam exec -- rocq c -R . SRG hamming.v
-```
+On Windows, `make` is available via [Chocolatey](https://chocolatey.org/).
 
 ## Demo
 
-Extract OCaml code and build the CLI:
-
 ```
-opam exec -- rocq c -R . SRG extract.v
-opam exec -- rocq c -R . SRG demo.v
-opam exec -- ocamlfind ocamlopt -c srg.mli
-opam exec -- ocamlfind ocamlopt -c srg.ml
-opam exec -- ocamlfind ocamlopt -c demo_srg.mli
-opam exec -- ocamlfind ocamlopt -c demo_srg.ml
-opam exec -- ocamlfind ocamlopt -c main.ml
-opam exec -- ocamlfind ocamlopt -o demo srg.cmx demo_srg.cmx main.cmx
+make demo
 ```
 
 Then produce adjacency matrices:
