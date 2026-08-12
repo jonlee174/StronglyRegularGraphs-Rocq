@@ -6,7 +6,7 @@ ROCQ      := opam exec -- rocq
 OCAMLFIND := opam exec -- ocamlfind
 VFILES    := main.v paley.v hamming.v
 
-.PHONY: all clean
+.PHONY: all clean install
 
 all: Makefile.coq
 	$(MAKE) -f Makefile.coq
@@ -34,9 +34,12 @@ main.cmx: main.ml srg.cmx demo_srg.cmx
 demo: srg.cmx demo_srg.cmx main.cmx
 	$(OCAMLFIND) ocamlopt -o $@ $^
 
+install: Makefile.coq
+	$(MAKE) -f Makefile.coq install
+
 clean: Makefile.coq
 	$(MAKE) -f Makefile.coq cleanall
-	rm -f Makefile.coq Makefile.coq.conf .Makefile.coq.d
+	rm -f Makefile.coq Makefile.coq.conf .Makefile.coq.d .filestoinstall
 	rm -f srg.ml srg.mli demo_srg.ml demo_srg.mli
 	rm -f extract.vo* extract.glob .extract.aux demo.vo* demo.glob .demo.aux
 	rm -f *.cmi *.cmx *.o demo

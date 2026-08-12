@@ -16,7 +16,7 @@ A small library formalizing strongly regular graphs (SRGs) in Rocq, built on Mat
 - Rocq 9.1
 - MathComp 2.5 (ssreflect, fingroup, algebra, field)
 - coq-graph-theory 0.9.7
-- coq-mathcomp-finmap 2.2.2 (see note below)
+- coq-mathcomp-finmap 2.2.2
 
 See `srg-deps.opam` for the full list. Install with:
 
@@ -24,25 +24,17 @@ See `srg-deps.opam` for the full list. Install with:
 opam install . --deps-only
 ```
 
-`coq-graph-theory` 0.9.7 does not bound `coq-mathcomp-finmap`, so opam will
-otherwise select finmap 2.2.4, which adds fset-comprehension lemmas to the
-`inE` database and breaks graph-theory's own `edges_atE` rewrites in
-`theories/core/open_confluence.v`. `srg-deps.opam` therefore constrains finmap
-to `>= 2.2.2 & < 2.2.4`, the newest release compatible with both MathComp 2.5
-and graph-theory 0.9.7. If you already have 2.2.4 installed, opam will
-downgrade it as part of `--deps-only`.
-
 ## Building
 
 ```
-make          # compile the proofs
-make demo     # extract to OCaml and build the ./demo CLI
-make clean    # remove all build artifacts
+make
 ```
 
 On Windows, `make` is available via [Chocolatey](https://chocolatey.org/).
 
 ## Demo
+
+Extract OCaml code and build the CLI:
 
 ```
 make demo
