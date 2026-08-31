@@ -215,3 +215,145 @@ Proof.
 Qed.
 
 End ComplementClosure.
+
+
+(**  SRG Properties **)
+(* Number of edges *)
+(* There are 2 ways to find the number of edges between the neighbors and non-neighbors of mu: 
+    Assuming G is a valid SRG: G = srg(n, k, lambda, mu). Then,
+    1. There are k(k - lambda - 1) edges between the non-neighbors of u
+    2. k(k - lambda - 1) = (v - k - 1)mu *)
+Section SRGProps.
+
+Variable G : sgraph.
+Variable p : srg_params.
+
+Hypothesis H_srg : is_srg G p.
+
+(* To ensure safe subtraction in k(k - lambda - 1) = (v - k - 1)mu, we need the following bounds:
+    - k >= lambda + 1  || lambda < k
+    - v >= k - 1 || k < v
+*)
+Hypothesis valid_k_lam : srg_lambda p < srg_k p.
+Hypothesis valid_k_v : srg_k p < srg_v p.
+
+(* General lemma for bipartite graph *)
+Lemma bipartite_g (A B : {set G}) (a b : nat) :
+  [disjoint A & B] ->
+  (forall v, v \in A -> #|neighborhood G v :&: B| = a) ->
+  (forall v, v \in B -> #|neighborhood G v :&: A| = b) ->
+  #|A| * a = #|B| * b.
+Proof.
+  Admitted.
+
+
+Lemma srg_standard_parameter_identity :
+  let v := srg_v p in
+  let k := srg_k p in
+  let lam := srg_lambda p in
+  let mu := srg_mu p in
+  k * (k - lam - 1) = (v - k - 1) * mu.
+Proof.
+  set v := srg_v p.
+  set k := srg_k p.
+  set lam := srg_lambda p.
+  set mu := srg_mu p.
+
+  move: H_srg => [Hv Hreg Hadj Hnonadj].
+
+  (* Count the edges between neighbors and non-neighbors of a vertex x *)
+  (* Let x be an arbitrary vertex in G *)
+  have num_v : 0 < v.
+  { exact: (leq_ltn_trans (leq0n k) valid_k_v). }
+
+  have [x _] : exists x : G, x \in [set: G].
+  { apply/card_gt0P.
+    rewrite Hv.
+    exact: num_v.
+  }
+
+  (* Define neighbor/non-neighbor sets around x *)
+  pose N := neighborhood G x.
+  pose M := [set y | (y != x) && (y \notin N)].
+
+  have size_N : #|N| = k.
+  { have Hkx := Hreg x.
+    by rewrite /degree /N in Hkx. }
+
+  (* Size of M is v - k - 1 *)
+  have size_M : #|M| = v - k - 1.
+  { rewrite /M.
+    rewrite (_ : [set y | (y != x) && (y \notin N)] = ~: (x |: N)).
+    - rewrite card_compl_set.
+      rewrite cardsU1.
+      rewrite Hv size_N -/v.
+      rewrite not_in_neighborhood.
+      rewrite addnC.
+      by rewrite subnDA.
+    - apply/setP => z.
+      rewrite !inE.
+      rewrite negb_or.
+      by rewrite eq_sym.
+  }
+
+  (* Counting number of edges connecting N to M:
+      - Step 1: prove that for a bipartite graph with 
+        parts A and B which is bi-regular of degrees
+        (a, b), the number of edges is a|A| = b|B|. 
+      - Step 2: apply this to N(x) and M(x) (ie, (V - N(x) - {x}) )
+  *)
+  rewrite /v /k /lam /mu.
+
+  (* Step 2: *)
+  have bipartite_N_M : #|N| * (srg_k p - srg_lambda p - 1) = #|M| * (srg_mu p).
+  { refine (bipartite_g (A := N) (B := M) 
+                        (a := srg_k p - srg_lambda p - 1) 
+                        (b := srg_mu p) _ _ _).
+    - (* Subgoal: Disjointness of N and M *)
+      rewrite /N /M.
+      apply/disjointP => z.
+      rewrite !inE.
+      move => H_in_N /andP [_ H_not_in_N].
+      by rewrite H_in_N in H_not_in_N.
+
+    - (* Subgoal 2: Fixed degree from N to M *)
+      move=> z Hz.
+      have Hzx : z -- x by move: Hz; rewrite /N /neighborhood inE sg_sym.
+      pose sub_set := x |: (neighborhood G z :&: N).
+
+      have -> : neighborhood G z :&: M = neighborhood G z :\: sub_set.
+      { apply/setP=> w. rewrite /sub_set /M /N !inE !negb_or.
+        by case: (z -- w). }
+      
+      have Hsub : sub_set \subset neighborhood G z.
+      { apply/subsetP=> w. rewrite /sub_set !inE.
+        case/orP=> [/eqP -> | /andP[H _]] //. }
+
+      rewrite (cardsDS Hsub).
+
+      have -> : #|sub_set| = 1 + srg_lambda p.
+      { rewrite /sub_set cardsU1.
+        have -> : x \notin neighborhood G z :&: N = true.
+        { rewrite in_setI.
+          have Hx : (x \in N) = false by rewrite /N inE sg_irrefl.
+          by rewrite Hx andbF. }
+        by rewrite -/(num_common_neighbors G z x) (Hadj z x Hzx). }
+
+        have -> : #|neighborhood G z| = srg_k p by exact: (Hreg z).
+        by rewrite addnC subnDA.
+
+    - (* Subgoal 3: Fixed degree from M to N *)
+      move=> z Hz.
+      have Hneq : z != x by move: Hz; rewrite /M inE => /andP [H _].
+      have HnotN : z \notin N by move: Hz; rewrite /M inE => /andP [_ H].
+      have Hnotadj : ~~ (z -- x).
+      { move: HnotN. rewrite /N inE. 
+        by rewrite sg_sym. }
+      have -> : #|neighborhood G z :&: N| = num_common_neighbors G z x.
+      { by rewrite /N /num_common_neighbors. }
+      by exact: (Hnonadj z x Hneq Hnotadj).
+  }
+  by rewrite size_N size_M in bipartite_N_M.
+Qed.
+      
+  
