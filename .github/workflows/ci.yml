@@ -1,0 +1,55 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Proofs and demo
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - uses: ocaml/setup-ocaml@v3
+        with:
+          ocaml-compiler: "5.4.1"
+          opam-repositories: |
+            coq-released: https://coq.inria.fr/opam/released
+            default: https://opam.ocaml.org
+
+      - name: Install dependencies
+        run: |
+          # Keep graph-theory 0.9.7 on the tested finmap API.
+          opam pin add --yes --no-action coq-mathcomp-finmap 2.2.2
+          opam install --yes . --deps-only
+
+      - name: Compile proofs
+        run: |
+          opam exec -- rocq makefile -f _CoqProject -o Makefile.ci
+          opam exec -- make -f Makefile.ci -j2
+
+      - name: Extract and compile demo
+        run: |
+          opam exec -- rocq c -R . SRG extract.v
+          opam exec -- rocq c -R . SRG demo.v
+          opam exec -- ocamlfind ocamlopt -c srg.mli
+          opam exec -- ocamlfind ocamlopt -c srg.ml
+          opam exec -- ocamlfind ocamlopt -c demo_srg.mli
+          opam exec -- ocamlfind ocamlopt -c demo_srg.ml
+          opam exec -- ocamlfind ocamlopt -c main.ml
+          opam exec -- ocamlfind ocamlopt -o demo srg.cmx demo_srg.cmx main.cmx
+
+      - name: Check demo matrices
+        run: python3 .github/scripts/check_demo.py
