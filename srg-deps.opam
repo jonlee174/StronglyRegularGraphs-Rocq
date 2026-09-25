@@ -11,9 +11,9 @@ depends: [
   "coq-mathcomp-algebra" {>= "2.5.0"}
   "coq-mathcomp-field" {>= "2.5.0"}
   "coq-graph-theory" {>= "0.9.7"}
+  "coq-mathcomp-finmap" {>= "2.2.2" & < "2.2.4"}
 ]
 build: [
-  ["coq_makefile" "-f" "_CoqProject" "-o" "Makefile"]
   [make "-j%{jobs}%"]
 ]
 install: [

@@ -10,7 +10,7 @@ From mathcomp Require Import cyclic.
 From GraphTheory.core Require Import edone preliminaries digraph sgraph.
 Require Import main.
 
-Import GRing.Theory.
+Import GRing.Theory FinRing.Theory.
 
 Set Implicit Arguments.
 Unset Printing Implicit Defensive.
@@ -72,6 +72,88 @@ Proof.
   - exact: QR_neg _ Hn1 H.
 Qed.
 
+
+(* Counting the quadratic residues *)
+
+(* In odd characteristic 2 is invertible *)
+Lemma finField_two_neq0 : odd q -> 2%:R != 0 :> F.
+Proof.
+  move=> oddq; apply/eqP => H2.
+  have Hd : (#[(1%R : F)]%g %| 2)%N.
+    by rewrite order_dvdn zmodXgE zmod1gE -[1 *+ 2]/(2%:R) H2.
+  have p2 : prime 2 by [].
+  have /primeP[_ /(_ _ Hd)] := p2.
+  rewrite order_eq1 zmod1gE (negbTE (oner_neq0 F)) /= => /eqP Hord.
+  have : (2 %| q)%N.
+    by rewrite -Hord /q -cardsT; apply: order_dvdG; rewrite inE.
+  by rewrite dvdn2 oddq.
+Qed.
+
+(* Every quadratic residue has exactly two square roots *)
+Lemma QR_fibre_card (x : F) :
+  2%:R != 0 :> F -> is_QR x ->
+  #|[pred a : F | (a != 0) && (a * a == x)]| = 2.
+Proof.
+  move=> H2 Hx; have [b Hb Hbsq] := QR_has_sqrt x Hx.
+  have Hbne : b != - b.
+  { apply/eqP => Hbb.
+    have : b *+ 2 = 0 by rewrite mulr2n {2}Hbb subrr.
+    by rewrite -mulr_natl => /eqP; rewrite mulf_eq0 (negbTE H2) (negbTE Hb). }
+  have Hset : [pred a : F | (a != 0) && (a * a == x)] =i [set b; - b].
+  { move=> a; rewrite !inE /=; apply/idP/idP.
+    - case/andP=> _ /eqP Ha.
+      have : (a - b) * (a + b) == 0.
+        by rewrite -subr_sqr expr2 Ha Hbsq subrr.
+      by rewrite mulf_eq0 subr_eq0 addr_eq0 => /orP[]->; rewrite ?orbT.
+    - case/orP=> /eqP ->.
+      + by rewrite Hb /= -expr2 Hbsq.
+      + by rewrite oppr_eq0 Hb /= mulrNN -expr2 Hbsq. }
+  by rewrite (eq_card Hset) cards2 Hbne.
+Qed.
+
+(* The squaring map is 2-to-1 from F^* onto the residues, so exactly half of the nonzero elements are squares.
+  (False in characteristic 2, where squaring is a bijection) *)
+Lemma card_QR_odd : odd q -> #|[set x : F | is_QR x]| = q.-1./2.
+Proof.
+  move=> oddq; have H2 := finField_two_neq0 oddq.
+  have key : (q.-1 = #|[set x : F | is_QR x]| * 2)%N.
+  { rewrite -/q -(cardC1 (0 : F)) -[X in X = _]sum1_card.
+    rewrite (partition_big (fun a : F => a * a) (fun x => is_QR x)) /=; last first.
+      by move=> a; rewrite !inE -expr2 => Ha; exact: QR_sqr.
+    rewrite -sum_nat_const.
+    under [X in _ = X]eq_bigl => i do rewrite inE.
+    apply: eq_bigr => x Hx; rewrite sum1_card.
+    by apply: (eq_trans _ (QR_fibre_card x H2 Hx)); apply: eq_card => a; rewrite !inE. }
+  by rewrite key muln2 doubleK.
+Qed.
+
+(* F^* is cyclic of order q - 1. 
+  When 4 | q - 1 it contains an element h of order 4, and h^2 is then the square root of -1 *)
+Lemma neg1_QR : (q %% 4 = 1)%N -> is_QR (- (1 : F)).
+Proof.
+  move=> q4; have q1 : (1 < q)%N by rewrite /q finNzRing_gt1.
+  have H4 : (4 %| q.-1)%N by rewrite -subn1 -eqn_mod_dvd ?q4 // ltnW.
+  have [k Hk] : exists k, q.-1 = (4 * k)%N.
+    by exists (q.-1 %/ 4)%N; rewrite mulnC divnK.
+  have qm1gt0 : (0 < q.-1)%N by rewrite -subn1 subn_gt0.
+  have kgt0 : (0 < k)%N by move: qm1gt0; rewrite Hk muln_gt0 => /andP[].
+  have /cyclicP[g Hg] := field_unit_group_cyclic [set: {unit F}]%G.
+  have Hord : #[g]%g = q.-1 by rewrite /order -Hg card_finField_unit.
+  set h := (g ^+ k)%g.
+  have Hh2 : (h ^+ 2)%g != 1%g.
+  { rewrite /h -expgM -order_dvdn Hord Hk; apply/negP => Hdvd.
+    have := dvdn_leq _ Hdvd; rewrite muln_gt0 kgt0 /= => /(_ isT).
+    by rewrite mulnC leq_pmul2l. }
+  have Hfour : (h ^+ 4)%g = 1%g by rewrite /h -expgM mulnC -Hk -Hord expg_order.
+  have Hsq : (\val ((h ^+ 2)%g : {unit F})) ^+ 2 = 1.
+  { by rewrite -val_unitX -expgM Hfour val_unit1. }
+  have Hval : (\val (h : {unit F})) ^+ 2 = - 1.
+  { move: Hsq => /eqP; rewrite sqrf_eq1 => /orP[] /eqP Hv.
+    - by case/negP: Hh2; apply/eqP/val_inj; rewrite Hv val_unit1.
+    - by rewrite -val_unitX. }
+  by rewrite -Hval; apply: QR_sqr; rewrite -unitfE (valP h).
+Qed.
+
 End QuadraticResidues.
 
 Arguments QR_neq0 {F x} _.
@@ -81,6 +163,61 @@ Arguments QR_mul_square {F x a} _ _.
 Arguments QR_mul_square_inv {F x a} _ _.
 Arguments QR_neg {F x} _ _.
 Arguments QR_neg_iff {F x} _.
+Arguments finField_two_neq0 {F} _.
+Arguments QR_fibre_card {F} x _ _.
+Arguments card_QR_odd {F} _.
+Arguments neg1_QR {F} _.
+
+Section QRCoset.
+
+Variable F : finFieldType.
+Let q := #|F|.
+
+(* For non-square x, multiplication by x maps the squares onto the non-squares,
+   so any two non-squares differ by a square factor *)
+Lemma nonQR_coset_odd (x y : F) : odd q ->
+  x != 0 -> ~~ is_QR F x -> y != 0 -> ~~ is_QR F y ->
+  exists2 a : F, a != 0 & a ^+ 2 * x = y.
+Proof.
+  move=> oddq Hx HxN Hy HyN.
+  pose m := q.-1./2.
+  pose S := [set z : F | is_QR F z].
+  pose N := [set z : F | (z != 0) && ~~ is_QR F z].
+  pose A := [set: F] :\ (0 : F).
+  have Hq1 : (1 < q)%N by rewrite /q finNzRing_gt1.
+  have Hq0 : (0 < q)%N := ltnW Hq1.
+  have Hev : ~~ odd q.-1 by rewrite -oddS prednK ?oddq.
+  have Hqm : q.-1 = (m + m)%N by rewrite /m addnn even_halfK.
+  have H0S : (0 : F) \notin S by rewrite inE; apply/negP=> /QR_neq0; rewrite eqxx.
+  have HS : #|S| = m by exact: card_QR_odd.
+  have HA : #|A| = q.-1.
+  { by have := cardsD1 (0 : F) [set: F]; rewrite inE cardsT -/q add1n => ->. }
+  have HAS : A :&: S = S.
+  { by apply/setP=> z; rewrite !inE andbT andb_idl //; exact: QR_neq0. }
+  have HAN : A :\: S = N.
+  { by apply/setP=> z; rewrite !inE andbT andbC. }
+  have Hsum : (#|S| + #|N|)%N = q.-1.
+  { by rewrite -HA -(cardsID S A) HAS HAN. }
+  have HN : #|N| = m.
+  { have H := Hsum; rewrite HS Hqm in H.
+    by apply/eqP; move/eqP: H; rewrite eqn_add2l. }
+  have Hsub : [set x * s | s in S] \subset N.
+  { apply/subsetP=> z /imsetP[s]; rewrite inE => Hs ->.
+    rewrite inE mulf_neq0 ?(QR_neq0 Hs) //=.
+    apply/negP=> Hxs; case/negP: HxN.
+    have [a Ha Hasq] := QR_has_sqrt Hs.
+    by apply: (QR_mul_square_inv Ha); rewrite Hasq mulrC. }
+  have Heq : [set x * s | s in S] = N.
+  { by apply/eqP; rewrite eqEcard Hsub /= card_imset ?HS ?HN //; apply: mulfI. }
+  have : y \in N by rewrite inE Hy HyN.
+  rewrite -Heq => /imsetP[s]; rewrite inE => Hs Hys.
+  have [a Ha Hasq] := QR_has_sqrt Hs.
+  by exists a => //; rewrite Hasq mulrC.
+Qed.
+
+End QRCoset.
+
+Arguments nonQR_coset_odd {F} x y _ _ _ _ _.
 
 
 Section PaleyGraph.
@@ -88,8 +225,23 @@ Section PaleyGraph.
 Variable F : finFieldType.
 Let q := #|F|.
 
-Hypothesis neg1_is_square : is_QR F (- (1 : F)).
-Hypothesis card_QR : #|[set x : F | is_QR F x]| = q.-1./2.
+Hypothesis q_mod4 : (q %% 4 = 1)%N.
+
+Lemma q_odd : odd q.
+Proof. by rewrite {1}(divn_eq q 4) q_mod4 oddD oddM. Qed.
+
+(* q = 1 mod 4 and q > 1 leave no room below 5 *)
+Lemma q_ge_5 : (4 < q)%N.
+Proof.
+have q1 : (1 < q)%N by rewrite /q finNzRing_gt1.
+by move: q_mod4 q1; rewrite /q; case: #|F| => [|[|[|[|[|n]]]]].
+Qed.
+
+Lemma neg1_is_square : is_QR F (- (1 : F)).
+Proof. exact: neg1_QR q_mod4. Qed.
+
+Lemma card_QR : #|[set x : F | is_QR F x]| = q.-1./2.
+Proof. exact: card_QR_odd q_odd. Qed.
 
 Definition paley_adj (x y : F) : bool :=
   (x != y) && is_QR F (x - y).
@@ -146,30 +298,12 @@ Proof.
 Qed.
 
 
-(* Edge Transitivity *)
-
-Lemma edge_transitive (x y : F) :
-  paley_adj x y ->
-  exists (a : F) (b : F), a != 0 /\
-    a ^+ 2 * x + b = 0 /\ a ^+ 2 * y + b = 1.
-Proof.
-  rewrite /paley_adj => /andP[_ HQR].
-  have [c Hc Hc_sq] := QR_has_sqrt HQR.
-  have Hne : x - y != 0 by exact: QR_neq0 HQR.
-  move: neg1_is_square => /andP[_ /existsP[d /andP[Hd /eqP Hd_sq]]].
-  set a := d * c^-1; set b := - (a ^+ 2 * x).
-  exists a, b; split; first by rewrite mulf_neq0 // invr_neq0.
-  split; first by rewrite /b addrN.
-  rewrite /b -mulrBr /a expr2 mulrACA Hd_sq -invrM ?unitfE // -expr2 Hc_sq.
-  by rewrite -[y - x]opprB mulrN mulfVK ?unitfE // opprK.
-Qed.
-
-
 (* Non-Edge Transitivity *)
 
-Hypothesis nonQR_coset : forall x y : F,
+Lemma nonQR_coset (x y : F) :
   x != 0 -> ~~ is_QR F x -> y != 0 -> ~~ is_QR F y ->
   exists2 a : F, a != 0 & a ^+ 2 * x = y.
+Proof. exact: nonQR_coset_odd x y q_odd. Qed.
 
 Lemma nonedge_transitive (x y x' y' : F) :
   x != y -> ~~ paley_adj x y ->
@@ -186,6 +320,25 @@ Proof.
   set b := x' - a ^+ 2 * x; exists a, b; split => //; split.
   - by rewrite /b addrCA subrr addr0.
   - by rewrite /b addrCA -mulrBr -opprB mulrN Hsc opprB addrCA subrr addr0.
+Qed.
+
+
+(* Edge Transitivity *)
+
+Lemma edge_transitive (x y : F) :
+  paley_adj x y ->
+  exists (a : F) (b : F), a != 0 /\
+    a ^+ 2 * x + b = 0 /\ a ^+ 2 * y + b = 1.
+Proof.
+  rewrite /paley_adj => /andP[_ HQR].
+  have [c Hc Hc_sq] := QR_has_sqrt HQR.
+  have Hne : x - y != 0 by exact: QR_neq0 HQR.
+  move: neg1_is_square => /andP[_ /existsP[d /andP[Hd /eqP Hd_sq]]].
+  set a := d * c^-1; set b := - (a ^+ 2 * x).
+  exists a, b; split; first by rewrite mulf_neq0 // invr_neq0.
+  split; first by rewrite /b addrN.
+  rewrite /b -mulrBr /a expr2 mulrACA Hd_sq -invrM ?unitfE // -expr2 Hc_sq.
+  by rewrite -[y - x]opprB mulrN mulfVK ?unitfE // opprK.
 Qed.
 
 
@@ -214,9 +367,6 @@ Proof. by move=> x; exact: paley_degree. Qed.
 
 (* Lambda *)
 
-Lemma zero_adj_one : @sedge paley_graph 0 1.
-Proof. by rewrite /= /paley_adj eq_sym oner_neq0 /= sub0r neg1_is_square. Qed.
-
 Lemma cn_01_set :
   @common_neighbors paley_graph 0 1 =
   [set z : F | is_QR F z && is_QR F (z - 1)].
@@ -228,46 +378,254 @@ Proof.
   by move: (QR_neq0 Hz1); rewrite subr_eq0 eq_sym => ->.
 Qed.
 
-Hypothesis lambda_count :
-  #|[set z : F | is_QR F z && is_QR F (z - 1)]| = ((q - 5) %/ 4)%N.
+Lemma cn_0c_set (c : F) :
+  @common_neighbors paley_graph 0 c =
+  [set z : F | is_QR F z && is_QR F (z - c)].
+Proof.
+  apply/setP => z; rewrite /common_neighbors /neighborhood !inE /edge_rel /= /paley_adj /=.
+  rewrite sub0r (QR_neg_iff neg1_is_square) -opprB (QR_neg_iff neg1_is_square).
+  case Hz: (is_QR F z); case Hzc: (is_QR F (z - c)); rewrite ?(andbT, andbF) //=.
+  rewrite eq_sym (negbTE (QR_neq0 Hz)) /=.
+  by move: (QR_neq0 Hzc); rewrite subr_eq0 eq_sym => ->.
+Qed.
 
-Lemma lambda_at_01 :
-  @num_common_neighbors paley_graph 0 1 = ((q - 5) %/ 4)%N.
-Proof. by rewrite /num_common_neighbors cn_01_set lambda_count. Qed.
-
-Lemma lambda_uniform (x y : F) :
+Lemma lambda_uniform0 (x y : F) :
   @sedge paley_graph x y ->
-  @num_common_neighbors paley_graph x y = ((q - 5) %/ 4)%N.
+  @num_common_neighbors paley_graph x y = @num_common_neighbors paley_graph 0 1.
 Proof.
   rewrite /= => Hadj.
   have [a [b [Ha [Hax Hay]]]] := edge_transitive _ _ Hadj.
-  by rewrite (affine_preserves_cn a b _ _ Ha) Hax Hay lambda_at_01.
+  by rewrite (affine_preserves_cn a b _ _ Ha) Hax Hay.
 Qed.
 
 
 (* Mu *)
 
-Hypothesis mu_uniform : forall x y : F,
+(* Non-edge transitivity makes the common-neighbour count constant on non-edges *)
+Lemma mu_uniform_pair (x y x' y' : F) :
+  x != y -> ~~ @sedge paley_graph x y ->
+  x' != y' -> ~~ @sedge paley_graph x' y' ->
+  @num_common_neighbors paley_graph x y = @num_common_neighbors paley_graph x' y'.
+Proof.
+  rewrite /= => Hneq Hnadj Hneq' Hnadj'.
+  have [a [b [Ha [Hax Hay]]]] := nonedge_transitive _ _ _ _ Hneq Hnadj Hneq' Hnadj'.
+  by rewrite (affine_preserves_cn a b _ _ Ha) Hax Hay.
+Qed.
+
+(* q = 4s + 5, the shape that makes the parameter arithmetic exact *)
+Lemma q_shape : exists s, q = (4 * s + 5)%N.
+Proof.
+  have H4 : (0 < q %/ 4)%N by rewrite divn_gt0 //; exact: ltnW q_ge_5.
+  have Hd : q = (4 * (q %/ 4) + 1)%N by rewrite {1}(divn_eq q 4) q_mod4 mulnC.
+  exists (q %/ 4).-1.
+  by rewrite {1}Hd -{1}(prednK H4) mulnSr -addnA.
+Qed.
+
+(* The graph is not complete, so some non-residue exists *)
+Lemma exists_nonres : exists2 n : F, n != 0 & ~~ is_QR F n.
+Proof.
+  have Hsub : neighborhood paley_graph 0 \subset [set: F] :\ (0 : F).
+  { apply/subsetP => z; rewrite !inE andbT /= /paley_adj.
+    by case/andP=> Hne _; rewrite eq_sym. }
+  have Hcard : #|[set: F] :\ (0 : F)| = q.-1.
+  { by have := cardsD1 (0 : F) [set: F]; rewrite inE cardsT -/q add1n => ->. }
+  have Hprop : neighborhood paley_graph 0 \proper [set: F] :\ (0 : F).
+  { rewrite properEcard Hsub /= Hcard -/(degree paley_graph 0) paley_degree.
+    by rewrite -divn2 ltn_Pdiv // -subn1 subn_gt0; apply: ltn_trans q_ge_5. }
+  have /properP[_ [z Hz1 Hz2]] := Hprop.
+  have Hz0 : z != 0 by move: Hz1; rewrite !inE andbT.
+  exists z => //.
+  move: Hz2; rewrite /neighborhood inE /edge_rel /= /paley_adj /= sub0r.
+  rewrite (QR_neg_iff neg1_is_square) negb_and.
+  have -> : (0 != z) = true by rewrite eq_sym Hz0.
+  by [].
+Qed.
+
+Lemma QR_one : is_QR F 1.
+Proof.
+  by rewrite /is_QR oner_neq0 /=; apply/existsP; exists 1; rewrite oner_neq0 mulr1 eqxx.
+Qed.
+
+(* Multiplying by a non-residue exchanges residues and non-residues *)
+Lemma QR_nonres_mul (n w : F) : n != 0 -> ~~ is_QR F n ->
+  is_QR F (n * w) = (w != 0) && ~~ is_QR F w.
+Proof.
+  move=> Hn0 HnN.
+  case: (altP (w =P 0)) => [->|Hw0]; first by rewrite mulr0 /is_QR eqxx.
+  rewrite /=; case: (boolP (is_QR F w)) => Hw /=.
+  - apply/negbTE; apply/negP => Hnw; case/negP: HnN.
+    have [a Ha Hasq] := QR_has_sqrt Hw.
+    by apply: (QR_mul_square_inv Ha); rewrite Hasq mulrC.
+  - have [a Ha Hasq] := nonQR_coset w n Hw0 Hw Hn0 HnN.
+    by rewrite -Hasq -mulrA -expr2 -exprMn; apply: QR_sqr; rewrite mulf_neq0.
+Qed.
+
+Lemma card_QR_shift : #|[set z : F | is_QR F (z - 1)]| = q.-1./2.
+Proof.
+  have -> : [set z : F | is_QR F (z - 1)]
+          = [set y + 1 | y in [set z : F | is_QR F z]].
+  { apply/setP => z; rewrite inE; apply/idP/imsetP.
+    - by move=> Hz; exists (z - 1); rewrite ?inE // subrK.
+    - by case=> y; rewrite inE => Hy ->; rewrite addrK. }
+  by rewrite card_imset ?card_QR //; exact: addIr.
+Qed.
+
+(* Counting the four residue classes of (z, z-1) gives mu = lambda + 1 *)
+Lemma mu_eq_lam_succ (n : F) : n != 0 -> ~~ is_QR F n ->
+  @num_common_neighbors paley_graph 0 n
+  = (@num_common_neighbors paley_graph 0 1).+1.
+Proof.
+  move=> Hn0 HnN.
+  have [s Hq] := q_shape.
+  have Hq1 : q.-1 = (4 * s + 4)%N by rewrite -subn1 Hq -addnBA.
+  have H2 : ((2 * s + 2).*2 = 4 * s + 4)%N by rewrite -mul2n mulnDr mulnA.
+  have Hm : q.-1./2 = (2 * s + 2)%N by rewrite Hq1 -H2 doubleK.
+  set S := [set z : F | is_QR F z].
+  set T := [set z : F | is_QR F (z - 1)].
+  have HS : #|S| = (2 * s + 2)%N by rewrite /S card_QR Hm.
+  have HT : #|T| = (2 * s + 2)%N by rewrite /T card_QR_shift Hm.
+  have HST : S :&: T = [set z : F | is_QR F z && is_QR F (z - 1)].
+  { by apply/setP => z; rewrite !inE. }
+  have Hlam : @num_common_neighbors paley_graph 0 1 = #|S :&: T|.
+  { by rewrite /num_common_neighbors cn_01_set HST. }
+  have key : forall w : F,
+    is_QR F (n * w) && is_QR F (n * (w - 1))
+    = ~~ is_QR F w && ~~ is_QR F (w - 1).
+  { move=> w; apply/idP/idP.
+    - by case/andP; rewrite !(QR_nonres_mul _ _ Hn0 HnN) => /andP[_ ->] /andP[_ ->].
+    - case/andP => Hw Hw1; rewrite !(QR_nonres_mul _ _ Hn0 HnN) Hw Hw1 !andbT.
+      apply/andP; split.
+      + by apply: (contraNneq _ Hw1) => ->; rewrite sub0r; exact: neg1_is_square.
+      + by rewrite subr_eq0; apply: (contraNneq _ Hw) => ->; exact: QR_one. }
+  have Hin : forall w : F,
+    (n * w \in [set z : F | is_QR F z && is_QR F (z - n)])
+    = (w \in ~: (S :|: T)).
+  { move=> w; rewrite !inE negb_or.
+    have -> : n * w - n = n * (w - 1) by rewrite mulrBr mulr1.
+    exact: key w. }
+  have Hmuset : [set z : F | is_QR F z && is_QR F (z - n)]
+              = [set n * w | w in ~: (S :|: T)].
+  { apply/setP => z; apply/idP/imsetP.
+    - move=> Hz; exists (n^-1 * z); last by rewrite mulrA mulfV // mul1r.
+      by rewrite -Hin mulrA mulfV // mul1r.
+    - by case=> w Hw ->; rewrite Hin. }
+  have Hmucard : @num_common_neighbors paley_graph 0 n = #|~: (S :|: T)|.
+  { rewrite /num_common_neighbors cn_0c_set Hmuset card_imset //.
+    exact: mulfI Hn0. }
+  have HU : (#|S :|: T| + #|S :&: T| = 4 * s + 4)%N.
+  { rewrite cardsU subnK; first by rewrite HS HT addnn H2.
+    apply: leq_trans (leq_addr #|T| #|S|).
+    by apply: subset_leq_card; exact: subsetIl. }
+  have Hcompl : #|~: (S :|: T)| = (#|S :&: T| + 1)%N.
+  { have HC := cardsC (S :|: T).
+    rewrite -/q Hq (_ : (4 * s + 5)%N = ((4 * s + 4) + 1)%N) in HC;
+      last by rewrite -addnA.
+    rewrite -HU -addnA in HC.
+    by move/eqP: HC; rewrite eqn_add2l => /eqP. }
+  by rewrite Hmucard Hcompl Hlam addn1.
+Qed.
+
+(* The counting identity plus mu = lambda + 1 pins both parameters *)
+Lemma lambda_at_01 :
+  @num_common_neighbors paley_graph 0 1 = ((q - 5) %/ 4)%N.
+Proof.
+  have [s Hq] := q_shape.
+  have Hq1 : q.-1 = (4 * s + 4)%N by rewrite -subn1 Hq -addnBA.
+  have H2 : ((2 * s + 2).*2 = 4 * s + 4)%N by rewrite -mul2n mulnDr mulnA.
+  have Hm : q.-1./2 = (2 * s + 2)%N by rewrite Hq1 -H2 doubleK.
+  have Hlam5 : ((q - 5) %/ 4)%N = s by rewrite Hq addnK mulKn.
+  have [n Hn0 HnN] := exists_nonres.
+  have Hnadj : ~~ @sedge paley_graph 0 n.
+  { by rewrite /= /paley_adj sub0r (QR_neg_iff neg1_is_square) (negbTE HnN) andbF. }
+  pose lam0 := @num_common_neighbors paley_graph 0 1.
+  pose mu0 := @num_common_neighbors paley_graph 0 n.
+  have Hall : forall u v : F, u != v -> ~~ @sedge paley_graph u v ->
+              @num_common_neighbors paley_graph u v = mu0.
+  { by move=> u v Hu Hv; apply: mu_uniform_pair => //; rewrite eq_sym. }
+  have HU : #|neighborhood paley_graph 0 :|: [set (0 : F)]| = (2 * s + 2).+1.
+  { by rewrite setUC cardsU1 not_in_neighborhood /= add1n
+       -/(degree paley_graph 0) paley_degree Hm. }
+  have H45 : ((2 * s + 2).+1 + (2 * s + 2) = 4 * s + 5)%N.
+  { by rewrite addSn addnn H2 -addn1 -addnA. }
+  have Hcompl : #|~: (neighborhood paley_graph 0 :|: [set (0 : F)])|
+              = (2 * s + 2)%N.
+  { have := cardsC (neighborhood paley_graph 0 :|: [set (0 : F)]).
+    by rewrite ?cardsT -/q HU Hq -H45 => /eqP; rewrite eqn_add2l => /eqP. }
+  have Hpos : (0 < 2 * s + 2)%N by rewrite addnC.
+  have Hcount := @srg_edge_count paley_graph q.-1./2 lam0 mu0 0
+                   paley_regular lambda_uniform0 Hall.
+  rewrite Hcompl Hm -mulnDr in Hcount.
+  move/eqP: Hcount; rewrite eqn_pmul2l // => /eqP Hcount2.
+  have Hmulam : mu0 = lam0.+1 by exact: mu_eq_lam_succ.
+  rewrite Hmulam in Hcount2.
+  rewrite -/lam0 Hlam5.
+  have Hss : (s.+1 + s.+1 = 2 * s + 2)%N by rewrite addSn addnS addnn mul2n addn2.
+  move: Hcount2; rewrite -Hss !addnn => /double_inj /succn_inj Hfin.
+  exact: Hfin.
+Qed.
+
+Lemma lambda_count :
+  #|[set z : F | is_QR F z && is_QR F (z - 1)]| = ((q - 5) %/ 4)%N.
+Proof. by rewrite -lambda_at_01 /num_common_neighbors cn_01_set. Qed.
+
+Lemma lambda_uniform (x y : F) :
+  @sedge paley_graph x y ->
+  @num_common_neighbors paley_graph x y = ((q - 5) %/ 4)%N.
+Proof. by move=> Hadj; rewrite (lambda_uniform0 x y Hadj) lambda_at_01. Qed.
+
+Lemma mu_uniform (x y : F) :
   x != y -> ~~ @sedge paley_graph x y ->
   @num_common_neighbors paley_graph x y = ((q - 1) %/ 4)%N.
+Proof.
+  move=> Hne Hna.
+  have [s Hq] := q_shape.
+  have H41 : (4 * s.+1 = 4 * s + 4)%N by rewrite mulnSr.
+  have Hlam5 : ((q - 5) %/ 4)%N = s by rewrite Hq addnK mulKn.
+  have Hmu4 : ((q - 1) %/ 4)%N = s.+1 by rewrite Hq -addnBA // -H41 mulKn.
+  have [n Hn0 HnN] := exists_nonres.
+  have Hnadj : ~~ @sedge paley_graph 0 n.
+  { by rewrite /= /paley_adj sub0r (QR_neg_iff neg1_is_square) (negbTE HnN) andbF. }
+  have Hn0' : (0 : F) != n by rewrite eq_sym.
+  rewrite (mu_uniform_pair x y 0 n Hne Hna Hn0' Hnadj).
+  by rewrite (mu_eq_lam_succ n Hn0 HnN) lambda_at_01 Hlam5 Hmu4.
+Qed.
 
 
 (* Connectivity *)
 
-Hypothesis q_ge_5 : (4 < q)%N.
-
-Lemma paley_connected : connected [set: paley_graph].
+Lemma paley_connect (x y : paley_graph) : connect (@sedge paley_graph) x y.
 Proof.
-  apply: connectedTI => x y.
   case: (x =P y) => [->|/eqP Hneq]; first exact: connect0.
   case Hadj: (x -- y); first exact: connect1.
   have Hmu := mu_uniform _ _ Hneq (negbT Hadj).
   have Hmu_pos : (0 < (q - 1) %/ 4)%N.
-  { by rewrite divn_gt0 // -(leq_add2r 1) (subnK (leq_trans _ (ltnW q_ge_5))). }
+  { rewrite divn_gt0 // -(leq_add2r 1) (subnK (leq_trans _ (ltnW q_ge_5))) //.
+    exact: q_ge_5. }
   have [z Hz] : exists z, z \in @common_neighbors paley_graph x y.
   { by apply/card_gt0P; rewrite -/(num_common_neighbors _ _ _) Hmu. }
   move: Hz; rewrite /common_neighbors /neighborhood !inE => /andP[Hxz Hyz].
   apply: connect_trans (connect1 Hxz) _; by apply: connect1; rewrite sg_sym.
+Qed.
+
+Lemma paley_connected : connected [set: paley_graph].
+Proof. by apply: connectedTI; exact: paley_connect. Qed.
+
+(* Multiplying by a non-residue is an isomorphism onto the complement *)
+Lemma paley_compl_connected : connected [set: compl paley_graph].
+Proof.
+  have [n Hn0 HnN] := exists_nonres.
+  apply: connectedTI => x y.
+  have Hhomo : {homo (fun w : F => n * w) : u v /
+                  @sedge paley_graph u v >-> @sedge (compl paley_graph) u v}.
+  { move=> u v /=; rewrite /paley_adj => /andP[Huv HQR].
+    have Hne : n * u != n * v by rewrite (inj_eq (mulfI Hn0)).
+    have Hnadj : ~~ paley_adj (n * u) (n * v).
+    { rewrite /paley_adj negb_and; apply/orP; right.
+      have -> : n * u - n * v = n * (u - v) by rewrite mulrBr.
+      by rewrite (QR_nonres_mul _ _ Hn0 HnN) HQR andbF. }
+    by rewrite /= Hne Hnadj. }
+  have := homo_connect Hhomo (paley_connect (n^-1 * (x : F)) (n^-1 * (y : F))).
+  by rewrite !mulrA !mulfV // !mul1r.
 Qed.
 
 
@@ -286,8 +644,6 @@ Qed.
 
 
 (* Complement *)
-
-Hypothesis q_mod4 : (q %% 4 = 1)%N.
 
 Lemma paley_compl_params :
   compl_srg_params paley_params = paley_params.
@@ -309,12 +665,10 @@ Proof.
 Qed.
 
 Theorem paley_compl_is_srg :
-  connected [set: compl paley_graph] ->
   is_srg (compl paley_graph) (compl_srg_params paley_params).
 Proof.
-  move=> Hconn.
-  have Hodd : odd q by rewrite (divn_eq q 4) q_mod4 oddD oddM.
-  have Hep : ~~ odd q.-1 by rewrite -oddS prednK //; apply: ltn_trans q_ge_5.
+  have Hconn := paley_compl_connected.
+  have Hep : ~~ odd q.-1 by rewrite -oddS prednK ?q_odd //; apply: ltn_trans q_ge_5.
   apply: (@srg_complement_closure paley_graph paley_params) => //.
   - by apply: leq_trans (leq_div _ 4) _;
        rewrite mul2n (even_halfK Hep) -subn1; exact: leq_sub2l.

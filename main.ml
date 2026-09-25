@@ -17,40 +17,44 @@ let print_matrix (mat : bool list list) =
     print_newline ()
   ) mat
 
-(* Hamming H(2,q) - uses Demo_srg.hamming_mat, which wraps the *)
-(* formally verified hamming_adj via Coq extraction. *)
+
+(* H(2,q) - Demo_srg.hamming_mat wraps the verified hamming_adj over 'I_q *)
 
 let hamming_matrix q = Demo_srg.hamming_mat q
 
 
-(* Paley(p) - constructs a FinRing.Field.coq_type instance for F_p   *)
-(* and calls the formally verified Srg.paley_adj via Coq extraction. *)
-(* Assisted by Claude Opus 4.6 *)
+(* Paley(p) - 'F_p cannot be extracted directly (its field structure carries a
+   Prop-sorted prod, which Coq extraction rejects), so we hand-build the
+   FinRing.Field record for Z/pZ and call the verified Srg.paley_adj on it.
+   Every operation below is a genuine field operation on Z/pZ for prime p;
+   the Prop-only mixins erase to Axioms_ placeholders. *)
+
+module Fp = struct
+  let repr (x : int) : Obj.t = Obj.repr x
+  let obj (x : Obj.t) : int = Obj.obj x
+
+  let add p x y = repr ((obj x + obj y) mod p)
+  let opp p x = repr ((p - obj x) mod p)
+  let mul p x y = repr ((obj x * obj y) mod p)
+  let eq x y = obj x = obj y
+
+  (* x^n mod p by square and multiply *)
+  let rec pow p b n =
+    if n = 0 then 1
+    else
+      let h = pow p b (n / 2) in
+      let h2 = h * h mod p in
+      if n mod 2 = 0 then h2 else h2 * b mod p
+
+  (* Fermat: for prime p and x <> 0, x^(p-2) is the inverse of x *)
+  let inv p x = if obj x = 0 then repr 0 else repr (pow p (obj x) (p - 2))
+end
 
 let fp_instance (p : int) : Srg.FinRing.Field.coq_type =
-  let eq_op (x : Obj.t) (y : Obj.t) =
-    (Obj.obj x : int) = (Obj.obj y : int)
-  in
-  let eqP (x : Obj.t) (y : Obj.t) : Srg.reflect =
-    if (Obj.obj x : int) = (Obj.obj y : int)
-    then Srg.ReflectT else Srg.ReflectF
-  in
-  let add (x : Obj.t) (y : Obj.t) : Obj.t =
-    Obj.repr (((Obj.obj x : int) + (Obj.obj y : int)) mod p)
-  in
-  let zero : Obj.t = Obj.repr 0 in
-  let opp (x : Obj.t) : Obj.t =
-    Obj.repr ((p - (Obj.obj x : int)) mod p)
-  in
-  let one : Obj.t = Obj.repr (if p > 1 then 1 else 0) in
-  let mul (x : Obj.t) (y : Obj.t) : Obj.t =
-    Obj.repr (((Obj.obj x : int) * (Obj.obj y : int)) mod p)
-  in
-  let elems : Obj.t list = List.init p (fun i -> Obj.repr i) in
   Obj.magic
-    { Srg.FinRing.Field.coq_Algebra_hasOpp_mixin = opp;
-      coq_Algebra_hasZero_mixin = zero;
-      coq_Algebra_hasAdd_mixin = add;
+    { Srg.FinRing.Field.coq_Algebra_hasOpp_mixin = Fp.opp p;
+      coq_Algebra_hasZero_mixin = Fp.repr 0;
+      coq_Algebra_hasAdd_mixin = Fp.add p;
       coq_Algebra_BaseZmoduleNmodule_isZmodule_mixin =
         Srg.Algebra.BaseZmoduleNmodule_isZmodule.Axioms_;
       coq_Algebra_BaseAddUMagma_isAddUMagma_mixin =
@@ -58,66 +62,59 @@ let fp_instance (p : int) : Srg.FinRing.Field.coq_type =
       coq_Algebra_BaseAddMagma_isAddMagma_mixin =
         Srg.Algebra.BaseAddMagma_isAddMagma.Axioms_;
       choice_hasChoice_mixin =
-        Obj.magic (fun (_p : Obj.t -> bool) (_n : int) -> (None : Obj.t option));
+        Obj.magic (fun (q : Obj.t -> bool) (n : int) ->
+          if n < p && q (Fp.repr n) then Some (Fp.repr n) else None);
       choice_Choice_isCountable_mixin =
         { Srg.Choice_isCountable.pickle = Obj.magic (fun (x : int) -> x);
           unpickle = Obj.magic (fun (n : int) ->
-            if 0 <= n && n < p then Some (Obj.repr n) else None) };
+            if 0 <= n && n < p then Some (Fp.repr n) else None) };
       eqtype_hasDecEq_mixin =
-        { Srg.Coq_hasDecEq.eq_op = eq_op; eqP = eqP };
+        { Srg.Coq_hasDecEq.eq_op = Fp.eq;
+          eqP = (fun x y -> if Fp.eq x y then Srg.ReflectT else Srg.ReflectF) };
       coq_Algebra_AddMagma_isAddSemigroup_mixin =
         Srg.Algebra.AddMagma_isAddSemigroup.Axioms_;
       coq_GRing_Nmodule_isPzSemiRing_mixin =
-        { Srg.GRing.Nmodule_isPzSemiRing.one = one; mul = mul };
+        { Srg.GRing.Nmodule_isPzSemiRing.one = Fp.repr 1; mul = Fp.mul p };
       coq_GRing_PzSemiRing_isNonZero_mixin =
         Srg.GRing.PzSemiRing_isNonZero.Axioms_;
       coq_GRing_PzSemiRing_hasCommutativeMul_mixin =
         Srg.GRing.PzSemiRing_hasCommutativeMul.Axioms_;
       coq_GRing_NzRing_hasMulInverse_mixin =
-        { Srg.GRing.NzRing_hasMulInverse.unit_subdef = (fun _ -> true);
-          inv = Obj.magic (fun (_x : int) -> 0) };
-      coq_GRing_UnitRing_isField_mixin =
-        Srg.GRing.UnitRing_isField.Axioms_;
+        { Srg.GRing.NzRing_hasMulInverse.unit_subdef = (fun x -> Fp.obj x <> 0);
+          inv = Fp.inv p };
+      coq_GRing_UnitRing_isField_mixin = Srg.GRing.UnitRing_isField.Axioms_;
       coq_GRing_ComUnitRing_isIntegral_mixin =
         Srg.GRing.ComUnitRing_isIntegral.Axioms_;
-      fintype_isFinite_mixin = elems }
+      fintype_isFinite_mixin = List.init p Fp.repr }
 
 let paley_matrix (p : int) : bool list list =
-  let f = fp_instance p in
-  let verts = List.init p (fun i -> Obj.repr i) in
-  List.map (fun u ->
-    List.map (fun v -> Srg.paley_adj f u v) verts
-  ) verts
+  let f = fp_instance p and verts = List.init p Fp.repr in
+  List.map (fun u -> List.map (Srg.paley_adj f u) verts) verts
 
 
 (* CLI *)
 
 let is_prime n =
-  if n < 2 then false
-  else let rec aux d = d * d > n || (n mod d <> 0 && aux (d + 1))
-       in aux 2
+  n >= 2 &&
+  (let rec aux d = d * d > n || (n mod d <> 0 && aux (d + 1)) in aux 2)
 
 let usage () =
   Printf.eprintf "Usage: %s hamming <q>   — adjacency matrix of H(2,q)\n" Sys.argv.(0);
   Printf.eprintf "       %s paley  <p>   — adjacency matrix of Paley(p)\n" Sys.argv.(0);
   exit 1
 
+let die fmt = Printf.ksprintf (fun s -> prerr_endline ("Error: " ^ s); exit 1) fmt
+
 let () =
   if Array.length Sys.argv <> 3 then usage ();
-  let kind = Sys.argv.(1) in
-  let n = try int_of_string Sys.argv.(2)
-          with Failure _ ->
-            Printf.eprintf "Error: %s is not an integer\n" Sys.argv.(2);
-            exit 1
-  in
-  match kind with
+  let arg = Sys.argv.(2) in
+  let n = try int_of_string arg with Failure _ -> die "%s is not an integer" arg in
+  match Sys.argv.(1) with
   | "hamming" ->
-    if n < 2 then (Printf.eprintf "Error: q must be >= 2\n"; exit 1);
+    if n < 2 then die "q must be >= 2";
     print_matrix (hamming_matrix n)
   | "paley" ->
-    if not (is_prime n) then
-      (Printf.eprintf "Error: %d is not prime\n" n; exit 1);
-    if n mod 4 <> 1 then
-      (Printf.eprintf "Error: %d is not congruent to 1 mod 4\n" n; exit 1);
+    if not (is_prime n) then die "%d is not prime" n;
+    if n mod 4 <> 1 then die "%d is not congruent to 1 mod 4" n;
     print_matrix (paley_matrix n)
   | _ -> usage ()
