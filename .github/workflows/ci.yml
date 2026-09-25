@@ -17,9 +17,16 @@ jobs:
     name: Proofs and demo
     runs-on: ubuntu-24.04
     timeout-minutes: 60
+    # setup-ocaml creates its switch as _opam in the workspace root. Check the
+    # sources out into a subdirectory so `-R . SRG` does not also map the
+    # switch's Corelib; opam still finds the switch from the parent directory.
+    defaults:
+      run:
+        working-directory: src
     steps:
       - uses: actions/checkout@v6
         with:
+          path: src
           persist-credentials: false
 
       - uses: ocaml/setup-ocaml@v3
